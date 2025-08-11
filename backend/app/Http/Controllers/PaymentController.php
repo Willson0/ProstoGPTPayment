@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Payment;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use YooKassa\Client;
+
+class PaymentController extends Controller
+{
+    public function buy (Request $request) {
+        $user = User::where("id", $request["user_id"])->firstOrFail();
+        if (!$user->email) abort (409, "Email not found");
+        if (!$user->payment_method_id) abort (409, "Payment method not found");
+
+        $client = new Client();
+        $client->setAuth(env("SHOP_ID"), env("YOOKASSA_API_KEY"));
+
+        $response = $client->createPayment(
+            [
+                'amount' => [
+                    'value' =>  number_format(max(1, $request->rub_summ), 2, '.', ''),
+                    'currency' => 'RUB',
+                ],
+                'capture' => true,
+                'payment_method_id' => $user->payment_method_id,
+                'description' => "Подписка на {${$request->days}} дней по тарифу \"{${$request->sub}}\" в Телеграмм - сервисе @{${env("BOT_NAME")}}",
+                'receipt' => [
+                    'customer' => [
+                        'email' => $user->email,
+                    ],
+                    'items' => [
+                        [
+                            'description' =>  "Подписка на {${$request->days}} дней по тарифу \"{${$request->sub}}\" в Телеграмм - сервисе @{${env("BOT_NAME")}}",
+                            'quantity' => '1.00',
+                            'amount' => [
+                                'value' => number_format(max(1, $request->rub_summ), 2, '.', ''),
+                                'currency' => 'RUB',
+                            ],
+                            'vat_code' => 2,
+                            'payment_mode' => 'full_payment',
+                            'payment_subject' => 'commodity',
+                        ],
+                    ],
+                ],
+            ],
+            $user->id . "_" . $request->sub . "_" . time()
+        );
+        $paymentID = $response->id;
+
+        $payment = Payment::create([
+            "user_id" => $user->id,
+            "payment_id" => $paymentID,
+            "is_bought" => false,
+            "rub_summa" => $request->rub_summ,
+            "summa" => $request->rub_summ,
+            "days" => $request->days,
+            "sub" => $request->sub,
+        ]);
+
+        $this->webhook(New Request($response->toArray()));
+    }
+
+    public function webhook (Request $request)
+    {
+        $payment = Payment::where("payment_id", $request->object["id"] ?? $request["id"])->first();
+        if ($request->event === "payment.succeeded" || $request->status === "succeeded") {
+            $user = User::find($payment->user_id);
+            if ($request->payment_method?->saved === true) $user->payment_method_id = $request->payment_method->id;
+
+            if ($payment->sub === "tokens") $user->bought_tokens += $payment->days;
+            else {
+                if ($user->tariff !== $payment->sub) {
+                    $user->tariff = $payment->sub;
+                    $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
+                    $user->orif_tariff = $payment->sub . "_0";
+                    $user->start_sub_time = Carbon::now()->timestamp;
+
+                    $dailyTokens = [
+                        'free' => 10000,
+                        'trial'=> 100000,
+                        'pro'=> 300000
+                    ];
+                    if ($payment->rub_summ === 1) {
+                        $user->tariff_tokens = $dailyTokens['trial'];
+                        $user->is_trial_sub = 1;
+                        $user->tried_free_smart = 1;
+                    }
+                    else $user->tariff_tokens = $dailyTokens[$user->tariff];
+                } else {
+                    $user->tariff_time = Carbon::parse($user->tariff_time)->addDays($payment->amount)->timestamp;
+                }
+            }
+            $user->save();
+
+            $payment->is_bought = true;
+            $payment->save();
+        } else if ($request->event === "payment.canceled" || $request->status === "canceled") {
+            $user = User::find($payment->user_id);
+            $user->tariff = "free";
+
+            $try = intval(explode('_', $user->orig_tariff)[1]);
+            if ($try === 0) {
+                $PRICES = [
+                    7 => 279,
+                    30 => 569,
+                    90 => 1499,
+                    180 => 2899
+                ];
+
+                $this->buy(new Request([
+                    "user_id" => $user->id,
+                    "sub" => "pro",
+                    "days" => 7,
+                    "rub_summ" => $PRICES[7],
+                    "summ" => $PRICES[7],
+                ]));
+            } else if ($try === 4) {
+                $user->orif_tariff = "free";
+                return $user->save();
+            }
+
+            $user->orig_tariff = $payment->sub . "_" . $try + 1;
+
+            $SPISANIE_TIMES_OSN = [
+                0 => 0,
+                1 => 86400,   # через день
+                2 => 86400,   # через 2 дня
+                3 => 432000,  # через неделю
+                4 => 2116800  # через месяц
+            ];
+            $user->tariff_time += $SPISANIE_TIMES_OSN[$try + 1];
+            $user->start_sub_time = 0;
+
+            $user->save();
+        }
+
+        $payment->save();
+        return response()->json();
+    }
+}
