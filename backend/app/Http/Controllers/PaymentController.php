@@ -6,6 +6,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use YooKassa\Client;
 
@@ -55,7 +56,7 @@ class PaymentController extends Controller
             "user_id" => $user->id,
             "payment_id" => $paymentID,
             "is_bought" => false,
-            "rub_summa" => $request->rub_summ,
+            "rub_summ" => $request->rub_summ,
             "summa" => $request->rub_summ,
             "days" => $request->days,
             "sub" => $request->sub,
@@ -71,7 +72,9 @@ class PaymentController extends Controller
             $user = User::find($payment->user_id);
             if ($request->payment_method?->saved === true) $user->payment_method_id = $request->payment_method->id;
 
+            $user->paid_money += $payment->rub_summ;
             if ($payment->sub === "tokens") $user->bought_tokens += $payment->days;
+            else if ($payment->sub === 'img_generations') $user->image_generations += $payment->days;
             else {
                 if ($user->tariff !== $payment->sub) {
                     $user->tariff = $payment->sub;
@@ -84,20 +87,73 @@ class PaymentController extends Controller
                         'trial'=> 100000,
                         'pro'=> 300000
                     ];
+                    $target = "userBoughtSubscription";
                     if ($payment->rub_summ === 1) {
                         $user->tariff_tokens = $dailyTokens['trial'];
                         $user->is_trial_sub = 1;
                         $user->tried_free_smart = 1;
+
+                        $target = "userBoughtTrialSubscription";
                     }
                     else $user->tariff_tokens = $dailyTokens[$user->tariff];
+
+                    $tgTrackToken = env('TG_TRACK_TOKEN');
+                    $adminChatId = '-4629052375';
+                    $botToken = env('TELEGRAM_BOT_TOKEN');
+
+                    try {
+                        $response = Http::post("https://bot-api.tgtrack.ru/v1/$tgTrackToken/send_reach_goal", [
+                            'user_id' => (string)$user->id,
+                            'target' => $target,
+                        ]);
+                        $responseText = $response->body();
+                        $responseStatus = $response->status();
+
+                        try {
+                            $text =
+                                "Событие достижения цели\n\n"
+                                . "User ID: $user->id\n"
+                                . "Событие: $target\n"
+                                . "Код ответа от сайта: $responseStatus\n\n"
+                                . "$responseText";
+
+                            Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                                'chat_id' => $adminChatId,
+                                'text'    => $text,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error("Ошибка при отправке сообщения в Telegram: {$e->getMessage()}");
+                            return null;
+                        }
+                        if ($responseStatus == 200) {
+                            return true;
+                        } else {
+                            Log::info("TGTRACK ERROR: $responseStatus - $responseText");
+                            return false;
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Ошибка при обращении к TGTrack: {$e->getMessage()}");
+                        return false;
+                    }
                 } else {
-                    $user->tariff_time = Carbon::parse($user->tariff_time)->addDays($payment->amount)->timestamp;
+                    $user->tariff_time = Carbon::parse($user->tariff_time)->addDays($payment->days)->timestamp;
                 }
             }
             $user->save();
-
             $payment->is_bought = true;
-            $payment->save();
+
+            $botToken = env('TELEGRAM_BOT_TOKEN');
+            if ($payment->sub === "tokens") $text = "✅ Оплата успешно прошла! На ваш аккаунт добавлено {$payment->days} токенов";
+            else $text = "<b>🎉 Классно, оплата прошла успешно!</b>\n\n❤️ Спасибо, что выбрали нас!\nЕсли будут вопросы — всегда здесь, чтобы помочь!";
+
+            $data = [
+                'chat_id' => $user->id,
+                'text' => $text,
+                'parse_mode' => 'HTML'
+            ];
+
+            $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
+            Http::post($url, $data);
         } else if ($request->event === "payment.canceled" || $request->status === "canceled") {
             $user = User::find($payment->user_id);
             $user->tariff = "free";
@@ -119,11 +175,11 @@ class PaymentController extends Controller
                     "summ" => $PRICES[7],
                 ]));
             } else if ($try === 4) {
-                $user->orif_tariff = "free";
+                $user->orig_tariff = "free";
                 return $user->save();
             }
 
-            $user->orig_tariff = $payment->sub . "_" . $try + 1;
+            $user->orig_tariff = $payment->sub . "_" . ($try + 1);
 
             $SPISANIE_TIMES_OSN = [
                 0 => 0,
