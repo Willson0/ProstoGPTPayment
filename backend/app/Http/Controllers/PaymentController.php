@@ -62,7 +62,7 @@ class PaymentController extends Controller
             "sub" => $request->sub,
         ]);
 
-        $this->webhook(New Request($response->toArray()));
+        return response()->json(["ok" => true]);
     }
 
     public function webhook (Request $request)
@@ -70,7 +70,7 @@ class PaymentController extends Controller
         $payment = Payment::where("payment_id", $request->object["id"] ?? $request["id"])->first();
         if ($request->event === "payment.succeeded" || $request->status === "succeeded") {
             $user = User::find($payment->user_id);
-            if ($request->payment_method?->saved === true) $user->payment_method_id = $request->payment_method->id;
+            if ($request->object["payment_method"]["saved"] === true ?? null) $user->payment_method_id = $request->object["payment_method"]["id"];
 
             $user->paid_money += $payment->rub_summ;
             if ($payment->sub === "tokens") $user->bought_tokens += $payment->days;
@@ -79,7 +79,7 @@ class PaymentController extends Controller
                 if ($user->tariff !== $payment->sub) {
                     $user->tariff = $payment->sub;
                     $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
-                    $user->orif_tariff = $payment->sub . "_0";
+                    $user->orig_tariff = $payment->sub . "_0";
                     $user->start_sub_time = Carbon::now()->timestamp;
 
                     $dailyTokens = [
@@ -167,7 +167,7 @@ class PaymentController extends Controller
                     180 => 2899
                 ];
 
-                $this->buy(new Request([
+                $this->buy(new Request([ // TODO: бесконечный цикл
                     "user_id" => $user->id,
                     "sub" => "pro",
                     "days" => 7,
