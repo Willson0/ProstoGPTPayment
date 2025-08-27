@@ -70,6 +70,10 @@ class PaymentController extends Controller
         $payment = Payment::where("payment_id", $request->object["id"] ?? $request["id"])->first();
         if ($request->event === "payment.succeeded" || $request->status === "succeeded") {
             $user = User::find($payment->user_id);
+            if (!$user) {
+                Log::error("User not found $payment->id: $payment->user_id");
+                return response('ok', 200);
+            }
             if ($request->object["payment_method"]["saved"] === true ?? null) $user->payment_method_id = $request->object["payment_method"]["id"];
 
             $user->paid_money += $payment->rub_summ;
