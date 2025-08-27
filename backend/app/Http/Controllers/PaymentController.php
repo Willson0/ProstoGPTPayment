@@ -93,7 +93,7 @@ class PaymentController extends Controller
                         'pro'=> 300000
                     ];
                     $target = "userBoughtSubscription";
-                    if ($payment->rub_summ === 1) {
+                    if ($payment->rub_summ == 1 || $payment->rub_summ == '1') {
                         $user->tariff_tokens = $dailyTokens['trial'];
                         $user->is_trial_sub = 1;
                         $user->tried_free_smart = 1;
