@@ -68,6 +68,7 @@ class PaymentController extends Controller
     public function webhook (Request $request)
     {
         $payment = Payment::where("payment_id", $request->object["id"] ?? $request["id"])->first();
+        Log::info($payment);
         if ($request->event === "payment.succeeded" || $request->status === "succeeded") {
             $user = User::find($payment->user_id);
             if (!$user) {
