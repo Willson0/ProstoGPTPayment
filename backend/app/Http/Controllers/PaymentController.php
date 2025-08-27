@@ -128,17 +128,12 @@ class PaymentController extends Controller
                             ]);
                         } catch (\Exception $e) {
                             Log::error("Ошибка при отправке сообщения в Telegram: {$e->getMessage()}");
-                            return null;
                         }
-                        if ($responseStatus == 200) {
-                            return true;
-                        } else {
+                        if ($responseStatus != 200) {
                             Log::info("TGTRACK ERROR: $responseStatus - $responseText");
-                            return false;
                         }
                     } catch (\Exception $e) {
                         Log::error("Ошибка при обращении к TGTrack: {$e->getMessage()}");
-                        return false;
                     }
                 } else {
                     $user->tariff_time = Carbon::parse($user->tariff_time)->addDays($payment->days)->timestamp;
