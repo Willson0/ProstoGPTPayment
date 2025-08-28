@@ -20,6 +20,7 @@ class PaymentController extends Controller
         $client = new Client();
         $client->setAuth(env("SHOP_ID"), env("YOOKASSA_API_KEY"));
 
+        $botname = env("BOT_NAME");
         $response = $client->createPayment(
             [
                 'amount' => [
@@ -28,14 +29,14 @@ class PaymentController extends Controller
                 ],
                 'capture' => true,
                 'payment_method_id' => $user->payment_method_id,
-                'description' => "Подписка на {${$request->days}} дней по тарифу \"{${$request->sub}}\" в Телеграмм - сервисе @{${env("BOT_NAME")}}",
+                'description' => "Подписка на $request->days дней по тарифу \"$request->sub\" в Телеграмм - сервисе @$botname",
                 'receipt' => [
                     'customer' => [
                         'email' => $user->email,
                     ],
                     'items' => [
                         [
-                            'description' =>  "Подписка на {${$request->days}} дней по тарифу \"{${$request->sub}}\" в Телеграмм - сервисе @{${env("BOT_NAME")}}",
+                            'description' =>  "Подписка на $request->days дней по тарифу \"$request->sub\" в Телеграмм - сервисе @$botname",
                             'quantity' => '1.00',
                             'amount' => [
                                 'value' => number_format(max(1, $request->rub_summ), 2, '.', ''),
@@ -54,6 +55,7 @@ class PaymentController extends Controller
 
         $payment = Payment::create([
             "user_id" => $user->id,
+            "is_autopayment" => 1,
             "payment_id" => $paymentID,
             "is_bought" => false,
             "rub_summ" => $request->rub_summ,
@@ -165,7 +167,7 @@ class PaymentController extends Controller
 
             $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
             Http::post($url, $data);
-        } else if ($request->event === "payment.canceled" || $request->status === "canceled") {
+        } else if (($request->event === "payment.canceled" || $request->status === "canceled") && $payment->is_autopayment) {
             $user = User::find($payment->user_id);
             $user->tariff = "free";
 
