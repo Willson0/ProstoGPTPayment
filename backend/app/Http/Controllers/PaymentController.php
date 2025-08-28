@@ -69,6 +69,8 @@ class PaymentController extends Controller
     {
         Log::info($request);
         $payment = Payment::where("payment_id", $request->object["id"] ?? $request["id"])->first();
+
+        if ($payment->is_bought) return response('ok', 200);
         if ($request->event === "payment.succeeded" || $request->status === "succeeded") {
             $user = User::find($payment->user_id);
             if (!$user) {
@@ -92,15 +94,24 @@ class PaymentController extends Controller
                         'trial'=> 100000,
                         'pro'=> 300000
                     ];
+                    $IMAGE_GENERATIONS = [
+                        'free' => 0,
+                        'trial' => 2,
+                        'pro' => 10
+                    ];
                     $target = "userBoughtSubscription";
                     if ($payment->rub_summ == 1 || $payment->rub_summ == '1') {
                         $user->tariff_tokens = $dailyTokens['trial'];
+                        $user->image_generations = $IMAGE_GENERATIONS["trial"];
                         $user->is_trial_sub = 1;
                         $user->tried_free_smart = 1;
 
                         $target = "userBoughtTrialSubscription";
                     }
-                    else $user->tariff_tokens = $dailyTokens[$user->tariff];
+                    else {
+                        $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
+                        $user->tariff_tokens = $dailyTokens[$user->tariff];
+                    }
 
                     $tgTrackToken = env('TG_TRACK_TOKEN');
                     $adminChatId = '-4629052375';
