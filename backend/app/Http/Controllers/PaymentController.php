@@ -96,7 +96,7 @@ class PaymentController extends Controller
                     ];
                     $IMAGE_GENERATIONS = [
                         'free' => 0,
-                        'trial' => 2,
+                        'trial' => 1,
                         'pro' => 10
                     ];
                     $target = "userBoughtSubscription";
