@@ -59,7 +59,7 @@ class PaymentController extends Controller
             "payment_id" => $paymentID,
             "is_bought" => false,
             "rub_summ" => $request->rub_summ,
-            "summa" => $request->rub_summ,
+            "summ" => $request->rub_summ,
             "days" => $request->days,
             "sub" => $request->sub,
         ]);
