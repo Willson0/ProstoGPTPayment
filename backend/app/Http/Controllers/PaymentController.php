@@ -91,29 +91,8 @@ class PaymentController extends Controller
                     $user->orig_tariff = $payment->sub . "_0";
                     $user->start_sub_time = Carbon::now()->timestamp;
 
-                    $dailyTokens = [
-                        'free' => 10000,
-                        'trial'=> 100000,
-                        'pro'=> 300000
-                    ];
-                    $IMAGE_GENERATIONS = [
-                        'free' => 0,
-                        'trial' => 1,
-                        'pro' => 10
-                    ];
                     $target = "userBoughtSubscription";
-                    if ($payment->rub_summ == 1 || $payment->rub_summ == '1') {
-                        $user->tariff_tokens = $dailyTokens['trial'];
-                        $user->image_generations = $IMAGE_GENERATIONS["trial"];
-                        $user->is_trial_sub = 1;
-                        $user->tried_free_smart = 1;
-
-                        $target = "userBoughtTrialSubscription";
-                    }
-                    else {
-                        $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
-                        $user->tariff_tokens = $dailyTokens[$user->tariff];
-                    }
+                    if ($payment->rub_summ == 1 || $payment->rub_summ == '1') $target = "userBoughtTrialSubscription";
 
                     $tgTrackToken = env('TG_TRACK_TOKEN');
                     $adminChatId = '-4629052375';
@@ -149,9 +128,31 @@ class PaymentController extends Controller
                         Log::error("Ошибка при обращении к TGTrack: {$e->getMessage()}");
                     }
                 } else {
-                    $user->tariff_time = Carbon::parse($user->tariff_time)->addDays($payment->days)->timestamp;
+                    $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
+                    $user->is_trial_sub = 0;
                 }
             }
+            $dailyTokens = [
+                'free' => 10000,
+                'trial'=> 100000,
+                'pro'=> 300000
+            ];
+            $IMAGE_GENERATIONS = [
+                'free' => 0,
+                'trial' => 1,
+                'pro' => 10
+            ];
+            if ($payment->rub_summ == 1 || $payment->rub_summ == '1') {
+                $user->tariff_tokens = $dailyTokens['trial'];
+                $user->image_generations = $IMAGE_GENERATIONS["trial"];
+                $user->is_trial_sub = 1;
+                $user->tried_free_smart = 1;
+            }
+            else {
+                $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
+                $user->tariff_tokens = $dailyTokens[$user->tariff];
+            }
+
             $user->save();
             $payment->is_bought = true;
 
