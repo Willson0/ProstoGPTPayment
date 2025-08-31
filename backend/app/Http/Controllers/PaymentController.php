@@ -151,6 +151,7 @@ class PaymentController extends Controller
             else {
                 $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
                 $user->tariff_tokens = $dailyTokens[$user->tariff];
+                $user->is_trial_sub = 0;
             }
 
             $user->save();
