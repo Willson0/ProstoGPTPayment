@@ -55,7 +55,7 @@ class PaymentController extends Controller
 
         $payment = Payment::create([
             "user_id" => $user->id,
-            "is_autopayment" => 1,
+            "is_autopayment" => 0,
             "payment_id" => $paymentID,
             "is_bought" => false,
             "rub_summ" => $request->rub_summ,
@@ -174,22 +174,8 @@ class PaymentController extends Controller
             $user->tariff = "free";
 
             $try = intval(explode('_', $user->orig_tariff)[1]);
-            if ($try === 0) {
-                $PRICES = [
-                    7 => 279,
-                    30 => 569,
-                    90 => 1499,
-                    180 => 2899
-                ];
 
-                $this->buy(new Request([ // TODO: бесконечный цикл
-                    "user_id" => $user->id,
-                    "sub" => "pro",
-                    "days" => 7,
-                    "rub_summ" => $PRICES[7],
-                    "summ" => $PRICES[7],
-                ]));
-            } else if ($try === 4) {
+            if ($try === 4) {
                 $user->orig_tariff = "free";
                 return $user->save();
             }
@@ -203,10 +189,30 @@ class PaymentController extends Controller
                 3 => 432000,  # через неделю
                 4 => 2116800  # через месяц
             ];
-            $user->tariff_time += $SPISANIE_TIMES_OSN[$try + 1];
+            $tryIndex = $try + 1;
+            $seconds = isset($SPISANIE_TIMES_OSN[$tryIndex]) ? (int)$SPISANIE_TIMES_OSN[$tryIndex] : 0;
+            $user->tariff_time = Carbon::now()->addSeconds($seconds)->timestamp;
+
             $user->start_sub_time = 0;
 
             $user->save();
+
+            if (intval($payment->days) === 30) {
+                $PRICES = [
+                    7 => 279,
+                    30 => 569,
+                    90 => 1499,
+                    180 => 2899
+                ];
+
+                $this->buy(new Request([
+                    "user_id" => $user->id,
+                    "sub" => "pro",
+                    "days" => 7,
+                    "rub_summ" => $PRICES[7],
+                    "summ" => $PRICES[7],
+                ]));
+            }
         }
 
         $payment->save();
