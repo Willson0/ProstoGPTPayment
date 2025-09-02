@@ -215,6 +215,7 @@ class PaymentController extends Controller
             }
         }
 
+        Log::critical($user);
         $payment->save();
         return response()->json();
     }
