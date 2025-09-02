@@ -172,12 +172,16 @@ class PaymentController extends Controller
         } else if (($request->event === "payment.canceled" || $request->status === "canceled") && $payment->is_autopayment) {
             $user = User::find($payment->user_id);
             $user->tariff = "free";
+            $user->is_trial_sub = 0;
+            $user->tariff_tokens = 10000;
 
             $try = intval(explode('_', $user->orig_tariff)[1]);
 
             if ($try === 4) {
                 $user->orig_tariff = "free";
-                return $user->save();
+                $user->tariff_time = 0;
+                $user->save();
+                return response("ok", 200);
             }
 
             $user->orig_tariff = $payment->sub . "_" . ($try + 1);
