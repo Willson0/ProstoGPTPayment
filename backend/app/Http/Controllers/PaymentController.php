@@ -177,6 +177,23 @@ class PaymentController extends Controller
 
             $try = intval(explode('_', $user->orig_tariff)[1]);
 
+            if (intval($payment->days) === 30) {
+                $PRICES = [
+                    7 => 279,
+                    30 => 569,
+                    90 => 1499,
+                    180 => 2899
+                ];
+
+                $this->buy(new Request([
+                    "user_id" => $user->id,
+                    "sub" => "pro",
+                    "days" => 7,
+                    "rub_summ" => $PRICES[7],
+                    "summ" => $PRICES[7],
+                ]));
+            }
+
             if ($try === 4) {
                 $user->orig_tariff = "free";
                 $user->tariff_time = 0;
@@ -200,23 +217,6 @@ class PaymentController extends Controller
             $user->start_sub_time = 0;
 
             $user->save();
-
-            if (intval($payment->days) === 30) {
-                $PRICES = [
-                    7 => 279,
-                    30 => 569,
-                    90 => 1499,
-                    180 => 2899
-                ];
-
-                $this->buy(new Request([
-                    "user_id" => $user->id,
-                    "sub" => "pro",
-                    "days" => 7,
-                    "rub_summ" => $PRICES[7],
-                    "summ" => $PRICES[7],
-                ]));
-            }
         }
 
         $payment->save();
