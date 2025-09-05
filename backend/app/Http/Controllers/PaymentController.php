@@ -149,7 +149,8 @@ class PaymentController extends Controller
                 $user->tried_free_smart = 1;
             }
             else {
-                $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
+                if ($payment->days === 7) $user->image_generations = 5;
+                else $user->image_generations = $IMAGE_GENERATIONS[$user->tariff];
                 $user->tariff_tokens = $dailyTokens[$user->tariff];
                 $user->is_trial_sub = 0;
             }
