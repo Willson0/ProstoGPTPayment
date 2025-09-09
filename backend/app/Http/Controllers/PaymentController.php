@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
+use App\Models\Stats;
 use App\Models\User;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -86,6 +88,38 @@ class PaymentController extends Controller
             else if ($payment->sub === 'img_generations') $user->image_generations += $payment->days;
             else {
                 if ($user->tariff !== $payment->sub) {
+                    try {
+                        $dayTries = Stats::where("name", "dayTries")->firstOrCreate([
+                            "name" => "dayTries",
+                            "date" => null,
+                            "params" => 0,
+                        ]);
+                        $dayTries->update([
+                            "params" => $dayTries->params + (intval(explode('_', $user->orig_tariff)[1]) + 1)
+                        ]);
+
+                        $dayAutocontinueCount = Stats::where("name", "dayAutocontinueCount")->firstOrCreate([
+                            "name" => "dayAutocontinueCount",
+                            "date" => null,
+                            "params" => 0,
+                        ]);
+                        $dayAutocontinueCount->update([
+                            "params" => $dayAutocontinueCount->params + 1,
+                        ]);
+
+                        $lastPayment = Payment::where("user_id", $user->id)->where("is_bought", 1)->orderBy("id", "desc")->first();
+                        if ($lastPayment->tariff == "pro" AND ($lastPayment->rub_summ == 1 || $lastPayment->rub_summ == '1')) {
+                            $autocontSuccess = Stats::where("name", "autocontSuccess")->firstOrCreate([
+                                "name" => "autocontSuccess",
+                                "date" => null,
+                                "params" => 0,
+                            ]);
+                            $autocontSuccess->update([
+                                "params" => $autocontSuccess->params + 1,
+                            ]);
+                        }
+                    } catch (Exception $e) {};
+
                     $user->tariff = $payment->sub;
                     $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
                     $user->orig_tariff = $payment->sub . "_0";
@@ -147,6 +181,17 @@ class PaymentController extends Controller
                 $user->image_generations = $IMAGE_GENERATIONS["trial"];
                 $user->is_trial_sub = 1;
                 $user->tried_free_smart = 1;
+
+                try {
+                    $trialBuys = Stats::where("name", "trialBuys")->firstOrCreate([
+                        "name" => "trialBuys",
+                        "date" => null,
+                        "params" => 0,
+                    ]);
+                    $trialBuys->update([
+                        "params" => $trialBuys->params + 1,
+                    ]);
+                } catch (Exception $e) {}
             }
             else {
                 if ($payment->days === 7) $user->image_generations = 5;
@@ -180,7 +225,8 @@ class PaymentController extends Controller
 
             if (intval($payment->days) === 30) {
                 $PRICES = [
-                    7 => 279,
+                    7 => 2,
+//                    7 => 279,
                     30 => 569,
                     90 => 1499,
                     180 => 2899
