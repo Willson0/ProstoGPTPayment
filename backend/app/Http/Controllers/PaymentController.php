@@ -118,7 +118,9 @@ class PaymentController extends Controller
                                 "params" => $autocontSuccess->params + 1,
                             ]);
                         }
-                    } catch (Exception $e) {};
+                    } catch (Exception $e) {
+                        Log::error($e);
+                    };
 
                     $user->tariff = $payment->sub;
                     $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
@@ -191,7 +193,9 @@ class PaymentController extends Controller
                     $trialBuys->update([
                         "params" => $trialBuys->params + 1,
                     ]);
-                } catch (Exception $e) {}
+                } catch (Exception $e) {
+                    Log::error($e);
+                }
             }
             else {
                 if ($payment->days === 7) $user->image_generations = 5;
