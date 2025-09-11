@@ -88,6 +88,11 @@ class PaymentController extends Controller
             else if ($payment->sub === 'img_generations') $user->image_generations += $payment->days;
             else {
                 if ($user->tariff !== $payment->sub) {
+                    $user->tariff = $payment->sub;
+                    $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
+                    $user->orig_tariff = $payment->sub . "_0";
+                    $user->start_sub_time = Carbon::now()->timestamp;
+
                     try {
                         $dayTries = Stats::where("name", "dayTries")->firstOrCreate([
                             "name" => "dayTries",
@@ -121,11 +126,6 @@ class PaymentController extends Controller
                     } catch (Exception $e) {
                         Log::error($e);
                     };
-
-                    $user->tariff = $payment->sub;
-                    $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
-                    $user->orig_tariff = $payment->sub . "_0";
-                    $user->start_sub_time = Carbon::now()->timestamp;
 
                     $target = "userBoughtSubscription";
                     if ($payment->rub_summ == 1 || $payment->rub_summ == '1') $target = "userBoughtTrialSubscription";
