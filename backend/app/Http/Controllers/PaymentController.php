@@ -93,38 +93,6 @@ class PaymentController extends Controller
                     $user->orig_tariff = $payment->sub . "_0";
                     $user->start_sub_time = Carbon::now()->timestamp;
 
-                    try {
-                        $dayTries = Stats::firstOrCreate(
-                            ['name' => 'dayTries'],
-                            ['date' => null, 'params' => 0]
-                        );
-
-                        $dayTries->update([
-                            "params" => $dayTries->params + (intval(explode('_', $user->orig_tariff)[1]) + 1)
-                        ]);
-
-                        $dayAutocontinueCount = Stats::firstOrCreate(
-                            ["name" => "dayAutocontinueCount"],
-                            ["date" => null, "params" => 0]
-                        );
-                        $dayAutocontinueCount->update([
-                            "params" => $dayAutocontinueCount->params + 1,
-                        ]);
-
-                        $lastPayment = Payment::where("user_id", $user->id)->where("is_bought", 1)->orderBy("id", "desc")->first();
-                        if ($lastPayment->tariff == "pro" AND ($lastPayment->rub_summ == 1 || $lastPayment->rub_summ == '1')) {
-                            $autocontSuccess = Stats::firstOrCreate(
-                                ["name" => "autocontSuccess"],
-                                ["date" => null, "params" => 0]
-                            );
-                            $autocontSuccess->update([
-                                "params" => $autocontSuccess->params + 1,
-                            ]);
-                        }
-                    } catch (Exception $e) {
-                        Log::error($e);
-                    };
-
                     $target = "userBoughtSubscription";
                     if ($payment->rub_summ == 1 || $payment->rub_summ == '1') $target = "userBoughtTrialSubscription";
 
@@ -162,6 +130,47 @@ class PaymentController extends Controller
                         Log::error("Ошибка при обращении к TGTrack: {$e->getMessage()}");
                     }
                 } else {
+                    try {
+                        $dayTries = Stats::firstOrCreate(
+                            ['name' => 'dayTries'],
+                            ['date' => null, 'params' => 0]
+                        );
+
+                        $dayTries->update([
+                            "params" => $dayTries->params + (intval(explode('_', $user->orig_tariff)[1]) + 1)
+                        ]);
+
+                        $subAutocontSuccess = Stats::firstOrCreate(
+                            ["name" => "subAutocontSuccess"],
+                            ["date" => null, "params" => 0]
+                        );
+                        $subAutocontSuccess->update([
+                            "params" => $subAutocontSuccess->params + 1,
+                        ]);
+
+                        $dayAutocontinueCount = Stats::firstOrCreate(
+                            ["name" => "dayAutocontinueCount"],
+                            ["date" => null, "params" => 0]
+                        );
+                        if ($user->is_trial_sub === 1)
+                            $dayAutocontinueCount->update([
+                                "params" => $dayAutocontinueCount->params + 1,
+                            ]);
+
+                        $lastPayment = Payment::where("user_id", $user->id)->where("is_bought", 1)->orderBy("id", "desc")->first();
+                        if ($lastPayment->tariff == "pro" AND ($lastPayment->rub_summ == 1 || $lastPayment->rub_summ == '1')) {
+                            $autocontSuccess = Stats::firstOrCreate(
+                                ["name" => "autocontSuccess"],
+                                ["date" => null, "params" => 0]
+                            );
+                            $autocontSuccess->update([
+                                "params" => $autocontSuccess->params + 1,
+                            ]);
+                        }
+                    } catch (Exception $e) {
+                        Log::error($e);
+                    };
+
                     $user->tariff_time = Carbon::now()->addDays($payment->days)->timestamp;
                     $user->is_trial_sub = 0;
                 }
